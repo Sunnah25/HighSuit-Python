@@ -266,10 +266,17 @@ class WelcomeScreen(QWidget):
 #  Setup Screen                                                       #
 # ------------------------------------------------------------------ #
 class SetupScreen(QWidget):
+    """
+    Matches Java setup flow exactly:
+    1. How many players? (1 or 2)
+    2. How many rounds? (1-3)
+    3. Player name(s) — if name is 'Computer', that player auto-plays
+    """
     def __init__(self, on_start_game, on_back):
         super().__init__()
         self.on_start_game = on_start_game
         self.on_back       = on_back
+        self._num_players  = 1
         self._build_ui()
 
     def _build_ui(self):
@@ -278,17 +285,17 @@ class SetupScreen(QWidget):
         root.setAlignment(Qt.AlignCenter)
         self.setLayout(root)
 
-        panel = QWidget()
-        panel.setFixedWidth(420)
-        panel.setStyleSheet(f"""
+        self.panel = QWidget()
+        self.panel.setFixedWidth(440)
+        self.panel.setStyleSheet(f"""
             background-color: {C.PANEL};
             border-radius: 12px;
             border: 1px solid {C.FELT_LIGHT};
         """)
-        pl = QVBoxLayout()
-        pl.setContentsMargins(36, 36, 36, 36)
-        pl.setSpacing(16)
-        panel.setLayout(pl)
+        self.pl = QVBoxLayout()
+        self.pl.setContentsMargins(36, 36, 36, 36)
+        self.pl.setSpacing(14)
+        self.panel.setLayout(self.pl)
 
         title = QLabel("New Game")
         title.setFont(QFont("Georgia", 22, QFont.Bold))
@@ -296,29 +303,48 @@ class SetupScreen(QWidget):
         title.setStyleSheet(
             f"color: {C.GOLD}; background: transparent; border: none;"
         )
-        pl.addWidget(title)
-        pl.addWidget(Divider())
+        self.pl.addWidget(title)
+        self.pl.addWidget(Divider())
 
-        name_lbl = QLabel("Your Name")
-        name_lbl.setFont(QFont("Arial", 10))
-        name_lbl.setStyleSheet(
+        # ── Number of players ─────────────────────────────────────
+        np_lbl = QLabel("Number of Players")
+        np_lbl.setFont(QFont("Arial", 10))
+        np_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        pl.addWidget(name_lbl)
+        self.pl.addWidget(np_lbl)
 
-        self.name_input = StyledInput(placeholder="Enter your name...")
-        self.name_input.setMaxLength(20)
-        pl.addWidget(self.name_input)
+        np_row = QHBoxLayout()
+        np_row.setSpacing(10)
+        self.btn_1p = QPushButton("1 Player")
+        self.btn_2p = QPushButton("2 Players")
+        for btn in [self.btn_1p, self.btn_2p]:
+            btn.setFixedHeight(40)
+            btn.setFont(QFont("Georgia", 11))
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+        self.btn_1p.setChecked(True)
+        self.btn_1p.clicked.connect(lambda: self._set_num_players(1))
+        self.btn_2p.clicked.connect(lambda: self._set_num_players(2))
+        self._style_player_btns()
+        np_row.addWidget(self.btn_1p)
+        np_row.addWidget(self.btn_2p)
 
-        rounds_lbl = QLabel("Number of Rounds")
+        np_container = QWidget()
+        np_container.setStyleSheet("background: transparent; border: none;")
+        np_container.setLayout(np_row)
+        self.pl.addWidget(np_container)
+
+        # ── Number of rounds ──────────────────────────────────────
+        rounds_lbl = QLabel("Number of Rounds (1–3)")
         rounds_lbl.setFont(QFont("Arial", 10))
         rounds_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        pl.addWidget(rounds_lbl)
+        self.pl.addWidget(rounds_lbl)
 
         self.rounds_spin = QSpinBox()
-        self.rounds_spin.setRange(1, 10)
+        self.rounds_spin.setRange(1, 3)
         self.rounds_spin.setValue(3)
         self.rounds_spin.setFixedHeight(42)
         self.rounds_spin.setFont(QFont("Arial", 12))
@@ -341,42 +367,42 @@ class SetupScreen(QWidget):
                 background-color: {C.GOLD};
             }}
         """)
-        pl.addWidget(self.rounds_spin)
+        self.pl.addWidget(self.rounds_spin)
 
-        # VS Computer toggle
-        vs_lbl = QLabel("Play Against")
-        vs_lbl.setFont(QFont("Arial", 10))
-        vs_lbl.setStyleSheet(
+        # ── Player 1 name ─────────────────────────────────────────
+        p1_lbl = QLabel("Player 1 Name")
+        p1_lbl.setFont(QFont("Arial", 10))
+        p1_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        pl.addWidget(vs_lbl)
+        self.pl.addWidget(p1_lbl)
 
-        self.vs_computer_btn = QPushButton("🤖  Play vs Computer")
-        self.vs_computer_btn.setCheckable(True)
-        self.vs_computer_btn.setChecked(False)
-        self.vs_computer_btn.setFixedHeight(42)
-        self.vs_computer_btn.setFont(QFont("Arial", 11))
-        self.vs_computer_btn.setCursor(Qt.PointingHandCursor)
-        self.vs_computer_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {C.INPUT_BG};
-                color: {C.TEXT_MUTED};
-                border: 1px solid {C.INPUT_BORDER};
-                border-radius: 6px;
-                padding: 0 14px;
-                text-align: left;
-            }}
-            QPushButton:checked {{
-                background-color: #1A3A20;
-                color: {C.GOLD};
-                border: 1px solid {C.GOLD};
-            }}
-        """)
-        pl.addWidget(self.vs_computer_btn)
+        self.name1_input = StyledInput(placeholder="Enter name  (type 'Computer' to auto-play)")
+        self.name1_input.setMaxLength(20)
+        self.pl.addWidget(self.name1_input)
 
-        pl.addSpacing(4)
-        pl.addWidget(Divider())
-        pl.addSpacing(4)
+        # ── Player 2 name (hidden when 1 player) ─────────────────
+        self.p2_lbl = QLabel("Player 2 Name")
+        self.p2_lbl.setFont(QFont("Arial", 10))
+        self.p2_lbl.setStyleSheet(
+            f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
+        )
+        self.pl.addWidget(self.p2_lbl)
+
+        self.name2_input = StyledInput(placeholder="Enter name  (type 'Computer' to auto-play)")
+        self.name2_input.setMaxLength(20)
+        self.pl.addWidget(self.name2_input)
+
+        # Hint
+        self.hint = QLabel("💡 Type 'Computer' as a name for an AI opponent")
+        self.hint.setFont(QFont("Arial", 9))
+        self.hint.setAlignment(Qt.AlignCenter)
+        self.hint.setStyleSheet(
+            f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
+        )
+        self.pl.addWidget(self.hint)
+
+        self.pl.addWidget(Divider())
 
         self.error_label = QLabel("")
         self.error_label.setFont(QFont("Arial", 10))
@@ -385,34 +411,74 @@ class SetupScreen(QWidget):
             f"color: {C.RED}; background: transparent; border: none;"
         )
         self.error_label.hide()
-        pl.addWidget(self.error_label)
+        self.pl.addWidget(self.error_label)
 
         start_btn = GoldButton("Start Game  →")
         start_btn.clicked.connect(self._on_start_clicked)
-        pl.addWidget(start_btn)
+        self.pl.addWidget(start_btn)
 
         back_btn = GhostButton("← Back to Menu")
         back_btn.clicked.connect(self.on_back)
-        pl.addWidget(back_btn)
+        self.pl.addWidget(back_btn)
 
-        root.addWidget(panel, alignment=Qt.AlignCenter)
+        root.addWidget(self.panel, alignment=Qt.AlignCenter)
+        self._set_num_players(1)
+
+    def _set_num_players(self, n):
+        self._num_players = n
+        self.btn_1p.setChecked(n == 1)
+        self.btn_2p.setChecked(n == 2)
+        self.p2_lbl.setVisible(n == 2)
+        self.name2_input.setVisible(n == 2)
+        self._style_player_btns()
+
+    def _style_player_btns(self):
+        for btn, active in [(self.btn_1p, self._num_players == 1),
+                            (self.btn_2p, self._num_players == 2)]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {'#1A3A20' if active else C.INPUT_BG};
+                    color: {C.GOLD if active else C.TEXT_MUTED};
+                    border: {'2px solid ' + C.GOLD if active else '1px solid ' + C.INPUT_BORDER};
+                    border-radius: 6px;
+                    padding: 0 14px;
+                }}
+                QPushButton:hover {{
+                    border-color: {C.GOLD};
+                    color: {C.GOLD};
+                }}
+            """)
 
     def _on_start_clicked(self):
-        name = self.name_input.text().strip()
-        if not name:
-            self.error_label.setText("Please enter your name to continue.")
+        name1 = self.name1_input.text().strip()
+        if not name1:
+            self.error_label.setText("Please enter Player 1's name.")
             self.error_label.show()
             return
+
+        if self._num_players == 2:
+            name2 = self.name2_input.text().strip()
+            if not name2:
+                self.error_label.setText("Please enter Player 2's name.")
+                self.error_label.show()
+                return
+            if name1.lower() == name2.lower():
+                self.error_label.setText("Players must have different names.")
+                self.error_label.show()
+                return
+            player_names = [name1, name2]
+        else:
+            player_names = [name1]
+
         self.error_label.hide()
-        vs_computer = self.vs_computer_btn.isChecked()
-        player_names = [name, "Computer"] if vs_computer else [name]
         self.on_start_game(player_names, self.rounds_spin.value())
 
     def reset(self):
-        self.name_input.clear()
+        self.name1_input.clear()
+        self.name2_input.clear()
         self.rounds_spin.setValue(3)
         self.error_label.hide()
-        self.vs_computer_btn.setChecked(False)
+        self._set_num_players(1)
 
 
 # ------------------------------------------------------------------ #
@@ -454,16 +520,17 @@ class SummaryScreen(QWidget):
 
         root.addWidget(self.panel, alignment=Qt.AlignCenter)
 
-    def load_summary(self, player, score_manager):
-        """Populate the summary with results from the finished game."""
-        # Fully clear previous content including nested layouts
+    def load_summary(self, players, rounds_played, score_manager):
+        """
+        Show all players' scores, declare winner.
+        Matches Java finalScore() output.
+        """
         while self.panel_layout.count():
             item = self.panel_layout.takeAt(0)
             if item.widget():
                 item.widget().setParent(None)
                 item.widget().deleteLater()
             elif item.layout():
-                # Clear nested layouts too
                 sub = item.layout()
                 while sub.count():
                     sub_item = sub.takeAt(0)
@@ -471,20 +538,18 @@ class SummaryScreen(QWidget):
                         sub_item.widget().setParent(None)
                         sub_item.widget().deleteLater()
 
-        name         = player.get_name()
-        total        = player.get_total_score()
-        round_scores = player.get_round_scores()
-        rounds       = len(round_scores)
-        avg          = round(total / rounds) if rounds else 0
+        # Sort players by total score descending (like Java finalScore)
+        sorted_players = sorted(players, key=lambda p: p.get_total_score(), reverse=True)
+        winner = sorted_players[0]
 
-        # ── Header ────────────────────────────────────────────────
+        # ── Trophy & title ────────────────────────────────────────
         trophy = QLabel("🏆")
         trophy.setFont(QFont("Arial", 36))
         trophy.setAlignment(Qt.AlignCenter)
         trophy.setStyleSheet("background: transparent; border: none;")
         self.panel_layout.addWidget(trophy)
 
-        title = QLabel("Game Over!")
+        title = QLabel(f"{winner.get_name()} Wins!")
         title.setFont(QFont("Georgia", 24, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
@@ -492,103 +557,94 @@ class SummaryScreen(QWidget):
         )
         self.panel_layout.addWidget(title)
 
-        player_lbl = QLabel(name)
-        player_lbl.setFont(QFont("Georgia", 13))
-        player_lbl.setAlignment(Qt.AlignCenter)
-        player_lbl.setStyleSheet(
+        self.panel_layout.addWidget(Divider())
+
+        # ── Final scores — all players ────────────────────────────
+        final_lbl = QLabel("FINAL SCORES")
+        final_lbl.setFont(QFont("Arial", 10))
+        final_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        self.panel_layout.addWidget(player_lbl)
+        self.panel_layout.addWidget(final_lbl)
+
+        for player in sorted_players:
+            row_w = QWidget()
+            row_w.setStyleSheet("background: transparent; border: none;")
+            row_l = QHBoxLayout()
+            row_l.setContentsMargins(0, 0, 0, 0)
+            row_w.setLayout(row_l)
+
+            crown = "👑 " if player == winner else "   "
+            name_lbl = QLabel(f"{crown}{player.get_name()}")
+            name_lbl.setFont(QFont("Georgia", 13, QFont.Bold if player == winner else QFont.Normal))
+            name_lbl.setStyleSheet(
+                f"color: {C.GOLD if player == winner else C.TEXT_LIGHT}; background: transparent; border: none;"
+            )
+            score_lbl = QLabel(f"{player.get_total_score()} pts")
+            score_lbl.setFont(QFont("Georgia", 13, QFont.Bold))
+            score_lbl.setAlignment(Qt.AlignRight)
+            score_lbl.setStyleSheet(
+                f"color: {C.GOLD if player == winner else C.TEXT_LIGHT}; background: transparent; border: none;"
+            )
+            row_l.addWidget(name_lbl)
+            row_l.addWidget(score_lbl)
+            self.panel_layout.addWidget(row_w)
 
         self.panel_layout.addWidget(Divider())
 
-        # ── Round breakdown ───────────────────────────────────────
-        rounds_title = QLabel("Round Breakdown")
-        rounds_title.setFont(QFont("Arial", 10))
-        rounds_title.setStyleSheet(
+        # ── Round breakdown for each player ───────────────────────
+        breakdown_lbl = QLabel("Round Breakdown")
+        breakdown_lbl.setFont(QFont("Arial", 10))
+        breakdown_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        self.panel_layout.addWidget(rounds_title)
+        self.panel_layout.addWidget(breakdown_lbl)
 
-        for i, score in enumerate(round_scores, 1):
-            row_widget = QWidget()
-            row_widget.setStyleSheet("background: transparent; border: none;")
-            row_layout = QHBoxLayout()
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            row_widget.setLayout(row_layout)
+        for player in sorted_players:
+            p_header = QLabel(player.get_name())
+            p_header.setFont(QFont("Arial", 10, QFont.Bold))
+            p_header.setStyleSheet(
+                f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
+            )
+            self.panel_layout.addWidget(p_header)
 
-            r_lbl = QLabel(f"Round {i}")
-            r_lbl.setFont(QFont("Arial", 12))
-            r_lbl.setStyleSheet(
-                f"color: {C.TEXT_LIGHT}; background: transparent; border: none;"
-            )
-            s_lbl = QLabel(f"+{score}")
-            s_lbl.setFont(QFont("Georgia", 12, QFont.Bold))
-            s_lbl.setAlignment(Qt.AlignRight)
-            s_lbl.setStyleSheet(
-                f"color: {C.GOLD}; background: transparent; border: none;"
-            )
-            row_layout.addWidget(r_lbl)
-            row_layout.addWidget(s_lbl)
-            self.panel_layout.addWidget(row_widget)
+            for i, score in enumerate(player.get_round_scores(), 1):
+                rw = QWidget()
+                rw.setStyleSheet("background: transparent; border: none;")
+                rl = QHBoxLayout()
+                rl.setContentsMargins(12, 0, 0, 0)
+                rw.setLayout(rl)
+                r_lbl = QLabel(f"Round {i}")
+                r_lbl.setFont(QFont("Arial", 11))
+                r_lbl.setStyleSheet(
+                    f"color: {C.TEXT_LIGHT}; background: transparent; border: none;"
+                )
+                s_lbl = QLabel(f"+{score}")
+                s_lbl.setFont(QFont("Georgia", 11, QFont.Bold))
+                s_lbl.setAlignment(Qt.AlignRight)
+                s_lbl.setStyleSheet(
+                    f"color: {C.GOLD}; background: transparent; border: none;"
+                )
+                rl.addWidget(r_lbl)
+                rl.addWidget(s_lbl)
+                self.panel_layout.addWidget(rw)
 
         self.panel_layout.addWidget(Divider())
-
-        # ── Total & Avg ───────────────────────────────────────────
-        total_widget = QWidget()
-        total_widget.setStyleSheet("background: transparent; border: none;")
-        total_layout = QHBoxLayout()
-        total_layout.setContentsMargins(0, 0, 0, 0)
-        total_widget.setLayout(total_layout)
-
-        t_lbl = QLabel("Total Score")
-        t_lbl.setFont(QFont("Georgia", 14, QFont.Bold))
-        t_lbl.setStyleSheet(
-            f"color: {C.TEXT_LIGHT}; background: transparent; border: none;"
-        )
-        t_val = QLabel(str(total))
-        t_val.setFont(QFont("Georgia", 22, QFont.Bold))
-        t_val.setAlignment(Qt.AlignRight)
-        t_val.setStyleSheet(
-            f"color: {C.GOLD}; background: transparent; border: none;"
-        )
-        total_layout.addWidget(t_lbl)
-        total_layout.addWidget(t_val)
-        self.panel_layout.addWidget(total_widget)
-
-        avg_widget = QWidget()
-        avg_widget.setStyleSheet("background: transparent; border: none;")
-        avg_layout = QHBoxLayout()
-        avg_layout.setContentsMargins(0, 0, 0, 0)
-        avg_widget.setLayout(avg_layout)
-
-        a_lbl = QLabel(f"Avg per Round ({rounds} rounds)")
-        a_lbl.setFont(QFont("Arial", 11))
-        a_lbl.setStyleSheet(
-            f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
-        )
-        a_val = QLabel(str(avg))
-        a_val.setFont(QFont("Georgia", 14, QFont.Bold))
-        a_val.setAlignment(Qt.AlignRight)
-        a_val.setStyleSheet(
-            f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
-        )
-        avg_layout.addWidget(a_lbl)
-        avg_layout.addWidget(a_val)
-        self.panel_layout.addWidget(avg_widget)
 
         # ── High score badge ──────────────────────────────────────
-        if score_manager.is_high_score(avg):
-            rank   = score_manager.get_rank(avg)
-            hs_lbl = QLabel(f"🎉  New High Score — Rank #{rank}!")
-            hs_lbl.setFont(QFont("Georgia", 11, QFont.Bold))
-            hs_lbl.setAlignment(Qt.AlignCenter)
-            hs_lbl.setStyleSheet(
-                f"color: {C.GOLD}; background: transparent; border: none;"
-            )
-            self.panel_layout.addWidget(hs_lbl)
-
-        self.panel_layout.addWidget(Divider())
+        # Only check human players for high score (not Computer)
+        for player in sorted_players:
+            if not player.is_computer():
+                avg = round(player.get_total_score() / rounds_played, 2)
+                if score_manager.is_high_score(avg):
+                    rank = score_manager.get_rank(avg)
+                    hs_lbl = QLabel(f"🎉  {player.get_name()} — New High Score! Rank #{rank}")
+                    hs_lbl.setFont(QFont("Georgia", 10, QFont.Bold))
+                    hs_lbl.setAlignment(Qt.AlignCenter)
+                    hs_lbl.setStyleSheet(
+                        f"color: {C.GOLD}; background: transparent; border: none;"
+                    )
+                    self.panel_layout.addWidget(hs_lbl)
 
         # ── Buttons ───────────────────────────────────────────────
         play_btn = GoldButton("Play Again")
@@ -1015,43 +1071,46 @@ class GameScreen(QWidget):
         self._end_player_turn()
 
     def _end_player_turn(self):
-        """Score current player, move to next player or end round."""
+        """
+        Score current player via game engine (not directly on player).
+        Matches Java: score calculated and added inside handleTurn().
+        """
         player = self._current_player()
-        score  = player.record_round_score()
+        name   = player.get_name()
 
-        suit_name = Suit.name(player.get_bonus_suit()) if player.get_bonus_suit() else "?"
+        # Score this player NOW via game engine
+        score  = self.game.score_player(name)
+        bonus_matched = self._bonus_matched(player)
+
         self.status_label.setText(
-            f"{player.get_name()} scored {score} pts  "
-            f"(best suit + {'5 bonus ✓' if self._bonus_matched(player) else 'no bonus'})"
+            f"{player.get_name()} scored {score} pts"
+            f"{'  (+5 bonus suit ✓)' if bonus_matched else ''}"
         )
         self.replace_btn.setEnabled(False)
         self.stand_btn.setEnabled(False)
         self._render_cards()
 
-        # Advance to next player or end round
+        # Move to next player or finish round
         self._current_player_idx += 1
-        if self._current_player_idx < len(self.game.get_players()):
-            # More players this round
-            self.next_btn.setText(
-                f"Next: {self.game.get_players()[self._current_player_idx].get_name()}  →"
-            )
+        players = self.game.get_players()
+
+        if self._current_player_idx < len(players):
+            next_name = players[self._current_player_idx].get_name()
+            self.next_btn.setText(f"Next: {next_name}  →")
             self.next_btn.show()
         else:
-            # All players done — end round properly
             self._finish_round()
 
-    def _finish_round(self):
-        """Advance game state and show next round or summary."""
-        # end_round() just advances state — scoring already done per player
-        # We call it manually here to move GameState
-        self.game._state = __import__('src.game', fromlist=['GameState']).GameState.REPLACING
-        self.game.end_round()
 
-        if self.game.get_state() == __import__('src.game', fromlist=['GameState']).GameState.GAME_OVER:
-            # Trigger summary via on_summary callback
-            # Pass the human (non-computer) player
-            human = self._get_human_player()
-            self.on_summary(human)
+    def _finish_round(self):
+        """
+        All players scored this round. Advance game state.
+        Matches Java: after all handleTurn() calls, move to next round.
+        """
+        self.game.advance_round_state()
+
+        if self.game.get_state() == GameState.GAME_OVER:
+            self.on_summary(self.game.get_players())
         else:
             self.next_btn.setText("Next Round  →")
             self.next_btn.show()
@@ -1204,16 +1263,19 @@ class MainWindow(QMainWindow):
         self.game_screen.load_game(player_names, total_rounds)
         self.stack.setCurrentIndex(2)
 
-    def _show_summary(self, player):
-        """Save score and show the summary screen."""
-        # Save BEFORE loading summary so rank is calculated correctly
-        self._score_manager.add_score(
-            name          = player.get_name(),
-            total_score   = player.get_total_score(),
-            round_scores  = player.get_round_scores(),
-            rounds_played = len(player.get_round_scores()),
-        )
-        self.summary_screen.load_summary(player, self._score_manager)
+    def _show_summary(self, players):
+        """
+        Save scores for ALL players (including Computer — matches Java).
+        Then show summary with winner declared.
+        """
+        rounds_played = self._last_rounds
+        for player in players:
+            self._score_manager.add_score(
+                name          = player.get_name(),
+                total_score   = player.get_total_score(),
+                rounds_played = rounds_played,
+            )
+        self.summary_screen.load_summary(players, rounds_played, self._score_manager)
         self.stack.setCurrentIndex(3)
 
     def _play_again(self):
