@@ -1,10 +1,12 @@
-from src.card import Card
+from src.card import Card, Suit
 
 
 class Hand:
     """
-    Represents a player's hand of cards.
-    Supports adding, replacing, and scoring cards.
+    Holds a player's 5 cards.
+    Scoring follows HighSuit rules:
+      - Score = total value of cards in the BEST single suit
+      - +5 bonus if that suit matches the chosen bonus suit
     """
 
     MAX_CARDS = 5
@@ -13,99 +15,87 @@ class Hand:
         self._cards = []
 
     def add_card(self, card):
-        """
-        Add a single card to the hand.
-        Raises ValueError if hand is already full.
-        """
-        if not isinstance(card, Card):
-            raise TypeError("Only Card objects can be added to a Hand.")
-        if len(self._cards) >= self.MAX_CARDS:
-            raise ValueError(f"Hand is full. Maximum {self.MAX_CARDS} cards allowed.")
-        self._cards.append(card)
+        if card and len(self._cards) < self.MAX_CARDS:
+            self._cards.append(card)
 
     def add_cards(self, cards):
-        """Add multiple cards at once."""
         for card in cards:
             self.add_card(card)
 
-    def replace_card(self, index, new_card):
-        """
-        Replace the card at the given index with a new card.
-        Raises IndexError if index is out of range.
-        """
-        if not isinstance(new_card, Card):
-            raise TypeError("Only Card objects can replace a card in a Hand.")
-        if index < 0 or index >= len(self._cards):
-            raise IndexError(f"Invalid card index: {index}. Hand has {len(self._cards)} cards.")
-        self._cards[index] = new_card
-
     def get_card(self, index):
-        """Return the card at the given index."""
-        if index < 0 or index >= len(self._cards):
-            raise IndexError(f"Invalid card index: {index}.")
-        return self._cards[index]
+        if 0 <= index < len(self._cards):
+            return self._cards[index]
+        return None
 
     def get_all_cards(self):
-        """Return a copy of all cards in hand."""
         return list(self._cards)
 
-    def get_score(self):
-        """
-        Calculate total hand score.
-        Score = sum of all card rank values (2–14 each).
-        """
-        return sum(card.get_value() for card in self._cards)
-
-    def get_highest_card(self):
-        """Return the highest card in the hand."""
-        if not self._cards:
-            return None
-        return max(self._cards)
-
-    def get_suit_bonus(self, bonus_suit):
-        """
-        HighSuit rule: cards matching the bonus suit
-        get double their rank value added to the score.
-        Returns the bonus points earned.
-        """
-        bonus = 0
-        for card in self._cards:
-            if card.get_suit() == bonus_suit:
-                bonus += card.get_value()
-        return bonus
-
-    def get_total_score(self, bonus_suit=None):
-        """
-        Full score including suit bonus if a bonus suit is active.
-        base score + bonus points from matching suit cards.
-        """
-        base = self.get_score()
-        bonus = self.get_suit_bonus(bonus_suit) if bonus_suit else 0
-        return base + bonus
-
-    def is_full(self):
-        """Returns True if the hand has the maximum number of cards."""
-        return len(self._cards) == self.MAX_CARDS
-
-    def is_empty(self):
-        """Returns True if the hand has no cards."""
-        return len(self._cards) == 0
-
-    def clear(self):
-        """Remove all cards from the hand."""
-        self._cards = []
+    def replace_card(self, index, new_card):
+        if 0 <= index < len(self._cards) and new_card:
+            self._cards[index] = new_card
 
     def size(self):
-        """Return the number of cards currently in hand."""
         return len(self._cards)
+
+    def is_full(self):
+        return len(self._cards) == self.MAX_CARDS
+
+    def clear(self):
+        self._cards = []
+
+    def suit_scores(self):
+        """
+        Returns dict of {suit_index: total_value} for all suits present.
+        Card values: 2-9 face value, 10/J/Q/K=10, Ace=11
+        """
+        scores = {}
+        for card in self._cards:
+            suit_idx = card.get_suit_index()
+            scores[suit_idx] = scores.get(suit_idx, 0) + card.get_value()
+        return scores
+
+    def best_suit_index(self):
+        """Return the suit index (0-3) with the highest total value."""
+        scores = self.suit_scores()
+        if not scores:
+            return 0
+        return max(scores, key=scores.get)
+
+    def best_suit_score(self):
+        """Return the highest single-suit total value."""
+        scores = self.suit_scores()
+        if not scores:
+            return 0
+        return max(scores.values())
+
+    def get_round_score(self, bonus_suit=None):
+        """
+        Final round score:
+        = best single suit score
+        + 5 if that suit matches the player's chosen bonus suit
+        """
+        scores     = self.suit_scores()
+        if not scores:
+            return 0
+        best_idx   = max(scores, key=scores.get)
+        best_score = scores[best_idx]
+
+        bonus = 0
+        if bonus_suit is not None:
+            bonus_idx = Suit.index(bonus_suit)
+            if best_idx == bonus_idx:
+                bonus = 5
+
+        return best_score + bonus
+
+    def get_max_possible_score(self):
+        """Best score ignoring bonus suit — used by computer player."""
+        return self.best_suit_score()
 
     def __str__(self):
         if not self._cards:
             return "Empty hand"
-        return " | ".join(str(card) for card in self._cards)
-
-    def __repr__(self):
-        return f"Hand({[repr(c) for c in self._cards]})"
+        return " | ".join(str(c) for c in self._cards)
 
     def __len__(self):
         return len(self._cards)

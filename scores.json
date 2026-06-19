@@ -1,0 +1,33 @@
+[
+  {
+    "name": "Sunnah",
+    "total_score": 58,
+    "round_scores": [
+      58
+    ],
+    "rounds_played": 1,
+    "avg_score": 58,
+    "date": "17 Jun 2026"
+  },
+  {
+    "name": "john",
+    "total_score": 110,
+    "round_scores": [
+      51,
+      59
+    ],
+    "rounds_played": 2,
+    "avg_score": 55,
+    "date": "17 Jun 2026"
+  },
+  {
+    "name": "sunnah",
+    "total_score": 41,
+    "round_scores": [
+      41
+    ],
+    "rounds_played": 1,
+    "avg_score": 41,
+    "date": "17 Jun 2026"
+  }
+]

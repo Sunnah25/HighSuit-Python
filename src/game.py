@@ -1,52 +1,48 @@
-import random
 from src.deck import Deck
 from src.player import Player
 from src.card import Suit
 
 
 class GameState:
-    """All possible states the game can be in at any point."""
-    WAITING    = "waiting"     # Not started yet
-    DEALING    = "dealing"     # Cards being dealt
-    REPLACING  = "replacing"   # Player choosing cards to replace
-    SCORING    = "scoring"     # Round being scored
-    GAME_OVER  = "game_over"   # All rounds complete
+    WAITING   = "waiting"
+    DEALING   = "dealing"
+    CHOOSING_SUIT = "choosing_suit"   # Player picks bonus suit
+    REPLACING = "replacing"           # Player swaps cards
+    SCORING   = "scoring"
+    GAME_OVER = "game_over"
 
 
 class Game:
     """
-    Core game engine for HighSuit.
+    HighSuit game engine.
 
-    Rules:
-    - Each game has a fixed number of rounds (default 3).
-    - At the start of each round a random bonus suit is chosen.
-    - Each player is dealt 5 cards.
-    - Players may replace up to MAX_REPLACEMENTS cards once per round.
-    - Cards matching the bonus suit score double their rank value.
-    - The player with the highest total score after all rounds wins.
+    Rules (matching Java original):
+    - Player CHOOSES their bonus suit after seeing their hand
+    - Score = highest single-suit card total
+    - +5 bonus if that suit matches chosen bonus suit
+    - Card values: 2-9 face value, 10/J/Q/K=10, Ace=11
+    - Up to 4 cards can be replaced per round
+    - Computer player: picks best suit, drops all non-matching cards
     """
 
-    MAX_REPLACEMENTS = 3
-    DEFAULT_ROUNDS   = 3
+    MAX_REPLACEMENTS = 4
+    MAX_ROUNDS       = 3
 
-    def __init__(self, player_names, total_rounds=DEFAULT_ROUNDS):
+    def __init__(self, player_names, total_rounds=3):
         if not player_names:
-            raise ValueError("At least one player name is required.")
-        if total_rounds < 1:
-            raise ValueError("Game must have at least 1 round.")
+            raise ValueError("At least one player name required.")
+        if not (1 <= total_rounds <= self.MAX_ROUNDS):
+            raise ValueError("Rounds must be 1–3.")
 
-        self._players      = [Player(name) for name in player_names]
-        self._deck         = Deck()
-        self._total_rounds = total_rounds
+        self._players       = [Player(name) for name in player_names]
+        self._deck          = Deck()
+        self._total_rounds  = total_rounds
         self._current_round = 0
-        self._bonus_suit   = None
-        self._state        = GameState.WAITING
+        self._state         = GameState.WAITING
         self._replacements_used = {p.get_name(): 0 for p in self._players}
+        self._current_player_index = 0
 
-    # ------------------------------------------------------------------ #
-    #  Getters                                                             #
-    # ------------------------------------------------------------------ #
-
+    # ── Getters ──────────────────────────────────────────────────
     def get_players(self):
         return list(self._players)
 
@@ -62,9 +58,6 @@ class Game:
     def get_total_rounds(self):
         return self._total_rounds
 
-    def get_bonus_suit(self):
-        return self._bonus_suit
-
     def get_state(self):
         return self._state
 
@@ -76,98 +69,133 @@ class Game:
         return max(0, self.MAX_REPLACEMENTS - used)
 
     def get_winner(self):
-        """Return the player with the highest total score. Call after game over."""
         if self._state != GameState.GAME_OVER:
             return None
         return max(self._players, key=lambda p: p.get_total_score())
 
     def get_leaderboard(self):
-        """Return players sorted by total score descending."""
-        return sorted(self._players, key=lambda p: p.get_total_score(), reverse=True)
+        return sorted(
+            self._players, key=lambda p: p.get_total_score(), reverse=True
+        )
 
-    # ------------------------------------------------------------------ #
-    #  Game Flow                                                           #
-    # ------------------------------------------------------------------ #
+    def get_current_player(self):
+        return self._players[self._current_player_index]
 
+    # ── Round flow ────────────────────────────────────────────────
     def start_round(self):
-        """
-        Begin a new round:
-        - Increment round counter
-        - Reset deck and shuffle
-        - Pick a random bonus suit
-        - Deal 5 cards to each player
-        """
+        """Deal 5 cards to all players. Ready for suit selection."""
         if self._state == GameState.GAME_OVER:
-            raise RuntimeError("Game is already over. Start a new game.")
+            raise RuntimeError("Game is over.")
 
         self._current_round += 1
         self._deck.reset()
-        self._bonus_suit = random.choice(Suit.ALL)
+        self._current_player_index = 0
         self._state = GameState.DEALING
 
-        # Reset replacement counters for this round
         for name in self._replacements_used:
             self._replacements_used[name] = 0
 
-        # Deal 5 cards to each player
         for player in self._players:
             player.clear_hand()
             player.add_cards(self._deck.deal_many(5))
 
+        self._state = GameState.CHOOSING_SUIT
+
+    def set_bonus_suit(self, player_name, suit):
+        """
+        Player nominates their bonus suit for this round.
+        suit must be one of Suit.ALL tuples.
+        """
+        if self._state != GameState.CHOOSING_SUIT:
+            raise RuntimeError("Not time to choose bonus suit.")
+        player = self.get_player(player_name)
+        if not player:
+            raise ValueError(f"No player '{player_name}'.")
+        player.set_bonus_suit(suit)
         self._state = GameState.REPLACING
 
-    def replace_cards(self, player_name, indices):
+    def computer_choose_suit(self, player_name):
         """
-        Replace cards at the given indices for a player.
-
-        - indices: list of 0-based positions in hand to replace (max 3 total)
-        - Each replaced card is drawn from the deck
-        - Returns the list of new cards dealt
+        Computer automatically picks the suit with highest
+        current card total as bonus suit.
+        Returns the chosen suit tuple.
         """
-        if self._state != GameState.REPLACING:
-            raise RuntimeError("Card replacement is not allowed right now.")
-
         player = self.get_player(player_name)
-        if player is None:
-            raise ValueError(f"No player named '{player_name}'.")
+        best_idx  = player.get_hand().best_suit_index()
+        best_suit = Suit.from_index(best_idx)
+        player.set_bonus_suit(best_suit)
+        self._state = GameState.REPLACING
+        return best_suit
 
-        # Deduplicate and validate indices
+    def computer_replace_cards(self, player_name):
+        """
+        Computer drops all cards NOT in its bonus suit.
+        Keeps at least 1 card (avoids dropping everything).
+        Returns list of indices replaced.
+        """
+        player     = self.get_player(player_name)
+        bonus_suit = player.get_bonus_suit()
+        bonus_idx  = Suit.index(bonus_suit)
+        hand       = player.get_hand()
+
+        drop_indices = [
+            i for i in range(hand.size())
+            if hand.get_card(i).get_suit_index() != bonus_idx
+        ]
+
+        # Never drop all cards — keep at least 1
+        if len(drop_indices) >= hand.size():
+            drop_indices = drop_indices[:hand.size() - 1]
+
+        # Cap at MAX_REPLACEMENTS
+        drop_indices = drop_indices[:self.MAX_REPLACEMENTS]
+
+        new_cards = []
+        for idx in drop_indices:
+            new_card = self._deck.deal()
+            if new_card:
+                player.replace_card(idx, new_card)
+                new_cards.append((idx, new_card))
+
+        self._replacements_used[player_name] = len(drop_indices)
+        return drop_indices
+
+    def replace_cards(self, player_name, indices):
+        """Human player replaces cards at given indices."""
+        if self._state != GameState.REPLACING:
+            raise RuntimeError("Not time to replace cards.")
+
+        player  = self.get_player(player_name)
         indices = list(set(indices))
+
         if any(i < 0 or i >= 5 for i in indices):
-            raise ValueError("Card indices must be between 0 and 4.")
+            raise ValueError("Indices must be 0–4.")
 
         remaining = self.get_replacements_left(player_name)
         if len(indices) > remaining:
             raise ValueError(
-                f"Cannot replace {len(indices)} cards. "
-                f"{player_name} has {remaining} replacement(s) left."
+                f"Only {remaining} replacement(s) left."
             )
 
         new_cards = []
-        for index in sorted(indices):
-            new_card = self._deck.deal()
-            if new_card is None:
-                break
-            player.replace_card(index, new_card)
-            new_cards.append(new_card)
+        for idx in sorted(indices):
+            card = self._deck.deal()
+            if card:
+                player.replace_card(idx, card)
+                new_cards.append(card)
 
         self._replacements_used[player_name] += len(new_cards)
         return new_cards
 
     def end_round(self):
-        """
-        Score the round for all players.
-        Returns a dict of {player_name: round_score}.
-        If all rounds are done, sets state to GAME_OVER.
-        """
+        """Score all players. Advance state."""
         if self._state != GameState.REPLACING:
-            raise RuntimeError("Cannot end round — round is not in progress.")
+            raise RuntimeError("Cannot end round now.")
 
         self._state = GameState.SCORING
         scores = {}
-
         for player in self._players:
-            score = player.record_round_score(bonus_suit=self._bonus_suit)
+            score = player.record_round_score()
             scores[player.get_name()] = score
 
         if self._current_round >= self._total_rounds:
@@ -178,18 +206,16 @@ class Game:
         return scores
 
     def reset_game(self):
-        """Fully reset everything for a brand new game."""
         for player in self._players:
             player.reset()
         self._deck.reset()
         self._current_round = 0
-        self._bonus_suit = None
-        self._state = GameState.WAITING
+        self._state         = GameState.WAITING
         self._replacements_used = {p.get_name(): 0 for p in self._players}
+        self._current_player_index = 0
 
     def __repr__(self):
         return (
             f"Game(round={self._current_round}/{self._total_rounds}, "
-            f"state={self._state}, "
-            f"bonus_suit={Suit.name(self._bonus_suit) if self._bonus_suit else None})"
+            f"state={self._state})"
         )

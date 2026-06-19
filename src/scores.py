@@ -14,6 +14,7 @@ class ScoreEntry:
         self.total_score   = total_score
         self.round_scores  = round_scores
         self.rounds_played = rounds_played
+        self.avg_score     = round(total_score / rounds_played) if rounds_played else 0
         self.date          = date or datetime.now().strftime("%d %b %Y")
 
     def to_dict(self):
@@ -22,23 +23,28 @@ class ScoreEntry:
             "total_score":   self.total_score,
             "round_scores":  self.round_scores,
             "rounds_played": self.rounds_played,
+            "avg_score":     self.avg_score,
             "date":          self.date,
         }
 
     @staticmethod
     def from_dict(d):
-        return ScoreEntry(
+        entry = ScoreEntry(
             name          = d["name"],
             total_score   = d["total_score"],
             round_scores  = d["round_scores"],
             rounds_played = d["rounds_played"],
             date          = d.get("date", ""),
         )
+        # Use stored avg if present, otherwise recalculate
+        entry.avg_score = d.get("avg_score", entry.avg_score)
+        return entry
 
 
 class ScoreManager:
     """
     Loads, saves, and ranks high scores from a local JSON file.
+    Ranked by AVERAGE score per round (total / rounds_played).
     Keeps the top 10 scores only.
     """
 
@@ -49,7 +55,6 @@ class ScoreManager:
         self._load()
 
     def _load(self):
-        """Load scores from file. Silently start fresh if file missing."""
         try:
             with open(SCORES_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -58,7 +63,6 @@ class ScoreManager:
             self._entries = []
 
     def _save(self):
-        """Persist scores to JSON file."""
         with open(SCORES_FILE, "w", encoding="utf-8") as f:
             json.dump(
                 [e.to_dict() for e in self._entries],
@@ -66,27 +70,27 @@ class ScoreManager:
             )
 
     def add_score(self, name, total_score, round_scores, rounds_played):
-        """Add a new entry, keep top 10, and save."""
+        """Add entry ranked by avg score, keep top 10, save."""
         entry = ScoreEntry(name, total_score, round_scores, rounds_played)
         self._entries.append(entry)
-        self._entries.sort(key=lambda e: e.total_score, reverse=True)
+        # Sort by avg score descending
+        self._entries.sort(key=lambda e: e.avg_score, reverse=True)
         self._entries = self._entries[:self.MAX_ENTRIES]
         self._save()
         return entry
 
     def get_entries(self):
-        """Return all entries sorted by score descending."""
         return list(self._entries)
 
-    def get_rank(self, total_score):
-        """Return what rank a given score would achieve (1-indexed)."""
+    def get_rank(self, avg_score):
+        """Return what rank this avg score would achieve."""
         for i, entry in enumerate(self._entries):
-            if total_score >= entry.total_score:
+            if avg_score >= entry.avg_score:
                 return i + 1
         return len(self._entries) + 1
 
-    def is_high_score(self, total_score):
-        """Returns True if this score makes the top 10."""
+    def is_high_score(self, avg_score):
+        """Returns True if this avg score makes the top 10."""
         if len(self._entries) < self.MAX_ENTRIES:
             return True
-        return total_score >= self._entries[-1].total_score
+        return avg_score >= self._entries[-1].avg_score

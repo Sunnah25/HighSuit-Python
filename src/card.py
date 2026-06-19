@@ -1,9 +1,8 @@
 class Suit:
-    """Represents the four suits in a deck, with hierarchy for HighSuit rules."""
-    CLUBS    = ("Clubs",    1)
-    DIAMONDS = ("Diamonds", 2)
-    HEARTS   = ("Hearts",   3)
-    SPADES   = ("Spades",   4)
+    CLUBS    = ("Clubs",    0)
+    DIAMONDS = ("Diamonds", 1)
+    HEARTS   = ("Hearts",   2)
+    SPADES   = ("Spades",   3)
 
     ALL = [CLUBS, DIAMONDS, HEARTS, SPADES]
 
@@ -12,25 +11,28 @@ class Suit:
         return suit[0]
 
     @staticmethod
-    def rank(suit):
+    def index(suit):
         return suit[1]
+
+    @staticmethod
+    def from_index(i):
+        return Suit.ALL[i]
 
 
 class Rank:
-    """Represents card ranks from 2 (lowest) to Ace (highest)."""
-    TWO   = ("2",  2)
-    THREE = ("3",  3)
-    FOUR  = ("4",  4)
-    FIVE  = ("5",  5)
-    SIX   = ("6",  6)
-    SEVEN = ("7",  7)
-    EIGHT = ("8",  8)
-    NINE  = ("9",  9)
-    TEN   = ("10", 10)
-    JACK  = ("J",  11)
-    QUEEN = ("Q",  12)
-    KING  = ("K",  13)
-    ACE   = ("A",  14)
+    TWO   = ("2",  0)
+    THREE = ("3",  1)
+    FOUR  = ("4",  2)
+    FIVE  = ("5",  3)
+    SIX   = ("6",  4)
+    SEVEN = ("7",  5)
+    EIGHT = ("8",  6)
+    NINE  = ("9",  7)
+    TEN   = ("10", 8)
+    JACK  = ("J",  9)
+    QUEEN = ("Q",  10)
+    KING  = ("K",  11)
+    ACE   = ("A",  12)
 
     ALL = [TWO, THREE, FOUR, FIVE, SIX, SEVEN,
            EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE]
@@ -40,13 +42,25 @@ class Rank:
         return rank[0]
 
     @staticmethod
-    def value(rank):
+    def index(rank):
         return rank[1]
+
+    @staticmethod
+    def card_value(rank):
+        """
+        Score value as per HighSuit rules:
+        2-9 → face value, 10/J/Q/K → 10, Ace → 11
+        """
+        i = rank[1]
+        if i <= 7:       # 2–9
+            return i + 2
+        elif i <= 11:    # 10, J, Q, K
+            return 10
+        else:            # Ace
+            return 11
 
 
 class Card:
-    """A single playing card with a suit and a rank."""
-
     def __init__(self, suit, rank):
         self.suit = suit
         self.rank = rank
@@ -58,15 +72,12 @@ class Card:
         return self.rank
 
     def get_value(self):
-        """Numeric value of the rank (2–14)."""
-        return Rank.value(self.rank)
+        return Rank.card_value(self.rank)
 
-    def get_suit_rank(self):
-        """Numeric rank of the suit (1–4). Higher = stronger in HighSuit."""
-        return Suit.rank(self.suit)
+    def get_suit_index(self):
+        return Suit.index(self.suit)
 
     def __str__(self):
-        """Human-readable: e.g. 'Ace of Spades'"""
         rank_names = {
             "2": "Two",   "3": "Three", "4": "Four",
             "5": "Five",  "6": "Six",   "7": "Seven",
@@ -80,16 +91,6 @@ class Card:
         return f"Card({Rank.name(self.rank)}{Suit.name(self.suit)[0]})"
 
     def __eq__(self, other):
-        """Two cards are equal if same suit and rank."""
         if not isinstance(other, Card):
             return False
         return self.suit == other.suit and self.rank == other.rank
-
-    def __lt__(self, other):
-        """Compare by rank value first, then suit rank if tied."""
-        if self.get_value() != other.get_value():
-            return self.get_value() < other.get_value()
-        return self.get_suit_rank() < other.get_suit_rank()
-
-    def __gt__(self, other):
-        return other.__lt__(self)
