@@ -267,16 +267,16 @@ class WelcomeScreen(QWidget):
 # ------------------------------------------------------------------ #
 class SetupScreen(QWidget):
     """
-    Matches Java setup flow exactly:
-    1. How many players? (1 or 2)
-    2. How many rounds? (1-3)
-    3. Player name(s) — if name is 'Computer', that player auto-plays
+    Setup flow:
+    - 1 Player: show name input + optional "Play vs Computer" toggle
+    - 2 Players: show two name inputs, no computer option
     """
     def __init__(self, on_start_game, on_back):
         super().__init__()
         self.on_start_game = on_start_game
         self.on_back       = on_back
         self._num_players  = 1
+        self._vs_computer  = False
         self._build_ui()
 
     def _build_ui(self):
@@ -285,9 +285,9 @@ class SetupScreen(QWidget):
         root.setAlignment(Qt.AlignCenter)
         self.setLayout(root)
 
-        self.panel = QWidget()
-        self.panel.setFixedWidth(440)
-        self.panel.setStyleSheet(f"""
+        panel = QWidget()
+        panel.setFixedWidth(440)
+        panel.setStyleSheet(f"""
             background-color: {C.PANEL};
             border-radius: 12px;
             border: 1px solid {C.FELT_LIGHT};
@@ -295,8 +295,9 @@ class SetupScreen(QWidget):
         self.pl = QVBoxLayout()
         self.pl.setContentsMargins(36, 36, 36, 36)
         self.pl.setSpacing(14)
-        self.panel.setLayout(self.pl)
+        panel.setLayout(self.pl)
 
+        # Title
         title = QLabel("New Game")
         title.setFont(QFont("Georgia", 22, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
@@ -327,12 +328,12 @@ class SetupScreen(QWidget):
         self.btn_1p.clicked.connect(lambda: self._set_num_players(1))
         self.btn_2p.clicked.connect(lambda: self._set_num_players(2))
         self._style_player_btns()
-        np_row.addWidget(self.btn_1p)
-        np_row.addWidget(self.btn_2p)
 
         np_container = QWidget()
         np_container.setStyleSheet("background: transparent; border: none;")
         np_container.setLayout(np_row)
+        np_row.addWidget(self.btn_1p)
+        np_row.addWidget(self.btn_2p)
         self.pl.addWidget(np_container)
 
         # ── Number of rounds ──────────────────────────────────────
@@ -370,18 +371,29 @@ class SetupScreen(QWidget):
         self.pl.addWidget(self.rounds_spin)
 
         # ── Player 1 name ─────────────────────────────────────────
-        p1_lbl = QLabel("Player 1 Name")
-        p1_lbl.setFont(QFont("Arial", 10))
-        p1_lbl.setStyleSheet(
+        self.p1_lbl = QLabel("Your Name")
+        self.p1_lbl.setFont(QFont("Arial", 10))
+        self.p1_lbl.setStyleSheet(
             f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
         )
-        self.pl.addWidget(p1_lbl)
+        self.pl.addWidget(self.p1_lbl)
 
-        self.name1_input = StyledInput(placeholder="Enter name  (type 'Computer' to auto-play)")
+        self.name1_input = StyledInput(placeholder="Enter your name...")
         self.name1_input.setMaxLength(20)
         self.pl.addWidget(self.name1_input)
 
-        # ── Player 2 name (hidden when 1 player) ─────────────────
+        # ── VS Computer toggle (1 player only) ───────────────────
+        self.vs_computer_btn = QPushButton("🤖  Play vs Computer")
+        self.vs_computer_btn.setCheckable(True)
+        self.vs_computer_btn.setChecked(False)
+        self.vs_computer_btn.setFixedHeight(42)
+        self.vs_computer_btn.setFont(QFont("Arial", 11))
+        self.vs_computer_btn.setCursor(Qt.PointingHandCursor)
+        self.vs_computer_btn.setStyleSheet(self._computer_btn_style(False))
+        self.vs_computer_btn.toggled.connect(self._on_computer_toggled)
+        self.pl.addWidget(self.vs_computer_btn)
+
+        # ── Player 2 name (2 player mode only) ───────────────────
         self.p2_lbl = QLabel("Player 2 Name")
         self.p2_lbl.setFont(QFont("Arial", 10))
         self.p2_lbl.setStyleSheet(
@@ -389,21 +401,13 @@ class SetupScreen(QWidget):
         )
         self.pl.addWidget(self.p2_lbl)
 
-        self.name2_input = StyledInput(placeholder="Enter name  (type 'Computer' to auto-play)")
+        self.name2_input = StyledInput(placeholder="Enter Player 2's name...")
         self.name2_input.setMaxLength(20)
         self.pl.addWidget(self.name2_input)
 
-        # Hint
-        self.hint = QLabel("💡 Type 'Computer' as a name for an AI opponent")
-        self.hint.setFont(QFont("Arial", 9))
-        self.hint.setAlignment(Qt.AlignCenter)
-        self.hint.setStyleSheet(
-            f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
-        )
-        self.pl.addWidget(self.hint)
-
         self.pl.addWidget(Divider())
 
+        # Error
         self.error_label = QLabel("")
         self.error_label.setFont(QFont("Arial", 10))
         self.error_label.setAlignment(Qt.AlignCenter)
@@ -421,20 +425,52 @@ class SetupScreen(QWidget):
         back_btn.clicked.connect(self.on_back)
         self.pl.addWidget(back_btn)
 
-        root.addWidget(self.panel, alignment=Qt.AlignCenter)
+        root.addWidget(panel, alignment=Qt.AlignCenter)
+
+        # Start in 1-player mode
         self._set_num_players(1)
+
+    def _computer_btn_style(self, active):
+        return f"""
+            QPushButton {{
+                background-color: {'#1A3A20' if active else C.INPUT_BG};
+                color: {C.GOLD if active else C.TEXT_MUTED};
+                border: {'2px solid ' + C.GOLD if active else '1px solid ' + C.INPUT_BORDER};
+                border-radius: 6px;
+                padding: 0 14px;
+                text-align: center;
+            }}
+            QPushButton:hover {{
+                border-color: {C.GOLD};
+                color: {C.GOLD};
+            }}
+        """
+
+    def _on_computer_toggled(self, checked):
+        self._vs_computer = checked
+        self.vs_computer_btn.setStyleSheet(self._computer_btn_style(checked))
 
     def _set_num_players(self, n):
         self._num_players = n
+        self._vs_computer = False
         self.btn_1p.setChecked(n == 1)
         self.btn_2p.setChecked(n == 2)
-        self.p2_lbl.setVisible(n == 2)
-        self.name2_input.setVisible(n == 2)
         self._style_player_btns()
 
+        # 1 player: show computer toggle, hide p2 name
+        # 2 players: hide computer toggle, show p2 name
+        self.vs_computer_btn.setVisible(n == 1)
+        self.vs_computer_btn.setChecked(False)
+        self.p1_lbl.setText("Your Name" if n == 1 else "Player 1 Name")
+        self.p2_lbl.setVisible(n == 2)
+        self.name2_input.setVisible(n == 2)
+        self.error_label.hide()
+
     def _style_player_btns(self):
-        for btn, active in [(self.btn_1p, self._num_players == 1),
-                            (self.btn_2p, self._num_players == 2)]:
+        for btn, active in [
+            (self.btn_1p, self._num_players == 1),
+            (self.btn_2p, self._num_players == 2),
+        ]:
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {'#1A3A20' if active else C.INPUT_BG};
@@ -452,11 +488,17 @@ class SetupScreen(QWidget):
     def _on_start_clicked(self):
         name1 = self.name1_input.text().strip()
         if not name1:
-            self.error_label.setText("Please enter Player 1's name.")
+            self.error_label.setText("Please enter your name.")
             self.error_label.show()
             return
 
-        if self._num_players == 2:
+        if self._num_players == 1:
+            if self._vs_computer:
+                player_names = [name1, "Computer"]
+            else:
+                player_names = [name1]
+
+        else:  # 2 players
             name2 = self.name2_input.text().strip()
             if not name2:
                 self.error_label.setText("Please enter Player 2's name.")
@@ -467,8 +509,6 @@ class SetupScreen(QWidget):
                 self.error_label.show()
                 return
             player_names = [name1, name2]
-        else:
-            player_names = [name1]
 
         self.error_label.hide()
         self.on_start_game(player_names, self.rounds_spin.value())
@@ -1036,7 +1076,7 @@ class GameScreen(QWidget):
         QTimer.singleShot(900, self._end_player_turn)
 
     def _on_suit_chosen(self, suit):
-        """Human player picks bonus suit."""
+        """Human player picks bonus suit. Now they get ONE replacement action."""
         player = self._current_player()
         self.game.set_bonus_suit(player.get_name(), suit)
 
@@ -1046,29 +1086,42 @@ class GameScreen(QWidget):
         self.bonus_name.setText(Suit.name(suit))
         self.suit_picker.hide()
 
-        self.hint_label.setText("Click cards to select them for replacement (max 4)")
-        self.replace_label.setText("Replacements left: 4")
+        self.hint_label.setText("Select up to 4 cards to replace — you get one replacement action")
+        self.replace_label.setText("You have 1 replacement action remaining")
         self.replace_btn.setEnabled(True)
         self.stand_btn.setEnabled(True)
         self.status_label.setText("")
 
     def _on_replace(self):
+        """
+        Single replacement action — replace selected cards then immediately
+        end the turn. Player gets no second chance.
+        """
         if not self.selected:
             self.status_label.setText("Select at least one card to replace.")
             return
+
         player_name = self._current_player().get_name()
         self.game.replace_cards(player_name, list(self.selected))
         self.selected.clear()
-        self._update_replacements_label()
+
+        # Disable both buttons immediately — no second action
+        self.replace_btn.setEnabled(False)
+        self.stand_btn.setEnabled(False)
         self._render_cards()
-        left = self.game.get_replacements_left(player_name)
-        self.status_label.setText("Cards replaced!")
-        if left == 0:
-            self.replace_btn.setEnabled(False)
-            self.status_label.setText("No replacements left.")
+        self.status_label.setText("Cards replaced! Scoring your hand...")
+        self.hint_label.setText("")
+        self.replace_label.setText("")
+
+        # Short delay so player can see new cards, then score
+        QTimer.singleShot(800, self._end_player_turn)
 
     def _on_stand(self):
-        self._end_player_turn()
+        """Stand pat — keep all cards, end turn immediately."""
+        self.replace_btn.setEnabled(False)
+        self.stand_btn.setEnabled(False)
+        self.status_label.setText("Standing pat... Scoring your hand...")
+        QTimer.singleShot(400, self._end_player_turn)
 
     def _end_player_turn(self):
         """
