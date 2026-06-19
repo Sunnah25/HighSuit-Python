@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QStackedWidget, QLineEdit,
     QSpinBox, QFrame, QScrollArea
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 
 from src.game import Game, GameState
