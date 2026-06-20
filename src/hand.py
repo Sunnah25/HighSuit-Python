@@ -40,6 +40,9 @@ class Hand:
     def is_full(self):
         return len(self._cards) == self.MAX_CARDS
 
+    def is_empty(self):
+        return len(self._cards) == 0
+
     def clear(self):
         self._cards = []
 
