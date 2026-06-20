@@ -11,7 +11,16 @@ except ImportError:
     _AVAILABLE = False
 
 
-ASSETS = os.path.join(os.path.dirname(__file__), "..", "assets")
+def _get_assets_path():
+    """Get assets folder whether running from source or .exe bundle."""
+    import sys
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS   # PyInstaller temp extraction folder
+    else:
+        base = os.path.join(os.path.dirname(__file__), "..")
+    return os.path.join(base, "assets")
+
+ASSETS     = _get_assets_path()
 MUSIC_FILE = os.path.join(ASSETS, "music.mp3")
 
 

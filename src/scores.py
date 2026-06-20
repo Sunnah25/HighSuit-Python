@@ -3,7 +3,21 @@ import os
 from datetime import datetime
 
 
-SCORES_FILE = os.path.join(os.path.dirname(__file__), "..", "scores.json")
+def _get_scores_path():
+    """
+    Find the right path for scores.json whether running from
+    source or as a PyInstaller .exe bundle.
+    """
+    import sys
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle — save next to the .exe
+        base = os.path.dirname(sys.executable)
+    else:
+        # Running from source
+        base = os.path.join(os.path.dirname(__file__), "..")
+    return os.path.join(base, "scores.json")
+
+SCORES_FILE = _get_scores_path()
 
 
 class ScoreEntry:
