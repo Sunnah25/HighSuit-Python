@@ -9,6 +9,10 @@ from PyQt5.QtGui import QFont
 from src.game import Game, GameState
 from src.card import Suit
 from src.scores import ScoreManager
+from src.sound import SoundManager
+
+# Global sound manager — one instance for the whole app
+_SFX = SoundManager()
 
 
 # ------------------------------------------------------------------ #
@@ -243,6 +247,17 @@ class WelcomeScreen(QWidget):
         start_btn.setFixedWidth(220)
         start_btn.clicked.connect(self.on_start)
         root.addWidget(start_btn, alignment=Qt.AlignCenter)
+        root.addSpacing(12)
+
+
+        mute_btn = GhostButton("🔇  Mute Music")
+        mute_btn.setFixedWidth(180)
+        mute_btn.setCheckable(True)
+        mute_btn.toggled.connect(lambda checked: (
+            _SFX.toggle_music(),
+            mute_btn.setText("🔊  Unmute Music" if checked else "🔇  Mute Music")
+        ))
+        root.addWidget(mute_btn, alignment=Qt.AlignCenter)
 
         root.addSpacing(12)
 
@@ -781,41 +796,55 @@ class HighScoreScreen(QWidget):
             self.panel_layout.addWidget(Divider())
 
             for i, entry in enumerate(entries, 1):
-                row  = QHBoxLayout()
-                rank = self.MEDALS.get(i, str(i))
+                # Use a QWidget row instead of bare QHBoxLayout
+                # This prevents stylesheet bleed causing strikethrough
+                row_widget = QWidget()
+                row_widget.setStyleSheet("background: transparent; border: none;")
+                row_layout = QHBoxLayout()
+                row_layout.setContentsMargins(0, 4, 0, 4)
+                row_layout.setSpacing(8)
+                row_widget.setLayout(row_layout)
 
-                rank_lbl = QLabel(str(rank))
-                rank_lbl.setFixedWidth(32)
-                rank_lbl.setFont(QFont("Arial", 13))
+                # Rank — fixed width, medal emoji or number
+                medal = self.MEDALS.get(i)
+                rank_lbl = QLabel(medal if medal else str(i))
+                rank_lbl.setFixedWidth(36)
+                rank_lbl.setFont(QFont("Arial", 14 if medal else 12))
+                rank_lbl.setAlignment(Qt.AlignCenter)
                 rank_lbl.setStyleSheet(
                     f"color: {C.GOLD}; background: transparent; border: none;"
                 )
+                row_layout.addWidget(rank_lbl)
 
+                # Name — stretches to fill
                 name_lbl = QLabel(entry.name)
                 name_lbl.setFont(QFont("Georgia", 12))
                 name_lbl.setStyleSheet(
                     f"color: {C.TEXT_LIGHT}; background: transparent; border: none;"
                 )
+                row_layout.addWidget(name_lbl, stretch=2)
 
-                score_lbl = QLabel(str(entry.avg_score))
+                # Avg score
+                score_lbl = QLabel(f"{entry.avg_score:.1f}")
                 score_lbl.setFont(QFont("Georgia", 13, QFont.Bold))
-                score_lbl.setAlignment(Qt.AlignRight)
+                score_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                score_lbl.setFixedWidth(60)
                 score_lbl.setStyleSheet(
                     f"color: {C.GOLD}; background: transparent; border: none;"
                 )
+                row_layout.addWidget(score_lbl)
 
+                # Date
                 date_lbl = QLabel(entry.date)
                 date_lbl.setFont(QFont("Arial", 9))
-                date_lbl.setAlignment(Qt.AlignRight)
+                date_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                date_lbl.setFixedWidth(90)
                 date_lbl.setStyleSheet(
                     f"color: {C.TEXT_MUTED}; background: transparent; border: none;"
                 )
+                row_layout.addWidget(date_lbl)
 
-                row.addWidget(rank_lbl)
-                row.addWidget(name_lbl)
-                row.addWidget(score_lbl)
-                row.addWidget(date_lbl)
-                self.panel_layout.addLayout(row)
+                self.panel_layout.addWidget(row_widget)
 
         self.panel_layout.addWidget(Divider())
 
@@ -973,11 +1002,13 @@ class GameScreen(QWidget):
         self.replace_btn.setEnabled(False)
         btn_row.addWidget(self.replace_btn)
 
-        self.stand_btn = GhostButton("Stand Pat  →")
-        self.stand_btn.setFixedWidth(160)
-        self.stand_btn.clicked.connect(self._on_stand)
-        self.stand_btn.setEnabled(False)
-        btn_row.addWidget(self.stand_btn)
+        self.score_hand_btn = GoldButton("Score My Hand  ✓")
+        self.score_hand_btn.setFixedWidth(200)
+        self.score_hand_btn.clicked.connect(self._end_player_turn)
+        self.score_hand_btn.hide()
+        btn_row.addWidget(self.score_hand_btn)
+
+        
 
         root.addLayout(btn_row)
 
@@ -1018,7 +1049,7 @@ class GameScreen(QWidget):
         self.status_label.setText("")
         self.suit_picker.show()
         self.replace_btn.setEnabled(False)
-        self.stand_btn.setEnabled(False)
+        self.score_hand_btn.hide()
 
         player = self._current_player()
         r = self.game.get_current_round()
@@ -1088,40 +1119,28 @@ class GameScreen(QWidget):
 
         self.hint_label.setText("Select up to 4 cards to replace — you get one replacement action")
         self.replace_label.setText("You have 1 replacement action remaining")
+        _SFX.play("click")
         self.replace_btn.setEnabled(True)
-        self.stand_btn.setEnabled(True)
+        self.score_hand_btn.hide()
         self.status_label.setText("")
 
     def _on_replace(self):
-        """
-        Single replacement action — replace selected cards then immediately
-        end the turn. Player gets no second chance.
-        """
+        """Replace selected cards — single action, then show Score button."""
         if not self.selected:
             self.status_label.setText("Select at least one card to replace.")
             return
-
         player_name = self._current_player().get_name()
         self.game.replace_cards(player_name, list(self.selected))
+        _SFX.play("replace")
         self.selected.clear()
-
-        # Disable both buttons immediately — no second action
         self.replace_btn.setEnabled(False)
-        self.stand_btn.setEnabled(False)
         self._render_cards()
-        self.status_label.setText("Cards replaced! Scoring your hand...")
-        self.hint_label.setText("")
+        self.status_label.setText("Cards replaced!")
+        self.hint_label.setText("Happy with your hand?")
         self.replace_label.setText("")
+        self.score_hand_btn.show()
 
-        # Short delay so player can see new cards, then score
-        QTimer.singleShot(800, self._end_player_turn)
 
-    def _on_stand(self):
-        """Stand pat — keep all cards, end turn immediately."""
-        self.replace_btn.setEnabled(False)
-        self.stand_btn.setEnabled(False)
-        self.status_label.setText("Standing pat... Scoring your hand...")
-        QTimer.singleShot(400, self._end_player_turn)
 
     def _end_player_turn(self):
         """
@@ -1133,6 +1152,7 @@ class GameScreen(QWidget):
 
         # Score this player NOW via game engine
         score  = self.game.score_player(name)
+        _SFX.play("score")
         bonus_matched = self._bonus_matched(player)
 
         self.status_label.setText(
@@ -1140,7 +1160,7 @@ class GameScreen(QWidget):
             f"{'  (+5 bonus suit ✓)' if bonus_matched else ''}"
         )
         self.replace_btn.setEnabled(False)
-        self.stand_btn.setEnabled(False)
+        self.score_hand_btn.hide()
         self._render_cards()
 
         # Move to next player or finish round
@@ -1163,6 +1183,7 @@ class GameScreen(QWidget):
         self.game.advance_round_state()
 
         if self.game.get_state() == GameState.GAME_OVER:
+            _SFX.play("win")
             self.on_summary(self.game.get_players())
         else:
             self.next_btn.setText("Next Round  →")
@@ -1245,6 +1266,7 @@ class GameScreen(QWidget):
             self.selected.add(index)
         self.status_label.setText("")
         self.card_widgets[index].set_selected(index in self.selected)
+        _SFX.play("card")
 
     def _update_replacements_label(self):
         player_name = self._current_player().get_name()
@@ -1265,6 +1287,7 @@ class MainWindow(QMainWindow):
         self._last_rounds   = 3
         self._centre_on_screen()
         self._build_ui()
+        _SFX.start_music()
 
     def _centre_on_screen(self):
         from PyQt5.QtWidgets import QDesktopWidget
