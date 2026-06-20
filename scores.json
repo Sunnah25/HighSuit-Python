@@ -21,17 +21,17 @@
     "date": "20 Jun 2026"
   },
   {
+    "name": "Messi",
+    "total_score": 99,
+    "rounds_played": 3,
+    "avg_score": 33.0,
+    "date": "21 Jun 2026"
+  },
+  {
     "name": "Sunnah",
     "total_score": 32,
     "rounds_played": 1,
     "avg_score": 32.0,
-    "date": "20 Jun 2026"
-  },
-  {
-    "name": "Computer",
-    "total_score": 60,
-    "rounds_played": 2,
-    "avg_score": 30.0,
     "date": "20 Jun 2026"
   }
 ]
