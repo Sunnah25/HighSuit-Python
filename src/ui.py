@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QStackedWidget, QLineEdit,
-    QSpinBox, QFrame, QScrollArea
+    QSpinBox, QFrame, QScrollArea, QSizePolicy
 )
+
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 
@@ -597,14 +598,15 @@ class SummaryScreen(QWidget):
     def _build_ui(self):
         self.setStyleSheet(f"background-color: {C.FELT};")
         root = QVBoxLayout()
-        root.setAlignment(Qt.AlignCenter)
-        root.setContentsMargins(0, 20, 0, 0)
+        root.setContentsMargins(40, 20, 40, 20)
         self.setLayout(root)
 
         # Scroll area so content never overflows
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setFixedWidth(500)
+        self.scroll.setMinimumWidth(500)
+        self.scroll.setMaximumWidth(580)
+        self.scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.scroll.setStyleSheet("""
             QScrollArea {
                 border: none;
@@ -881,12 +883,13 @@ class GameScreen(QWidget):
         ("Spades",   "♠", C.TEXT_LIGHT, Suit.SPADES),
     ]
 
-    def __init__(self, on_summary):
+    def __init__(self, on_summary, on_menu):
         super().__init__()
-        self.on_summary   = on_summary
-        self.game         = None
+        self.on_summary  = on_summary
+        self._on_menu    = on_menu
+        self.game        = None
         self.card_widgets = []
-        self.selected     = set()
+        self.selected    = set()
         self._current_player_idx = 0
         self._build_ui()
 
@@ -1029,12 +1032,21 @@ class GameScreen(QWidget):
         root.addStretch()
 
         bottom_bar = QHBoxLayout()
+
+        # Quit — exits without saving score
+        self.quit_btn = GhostButton("✕  Quit Game")
+        self.quit_btn.setFixedWidth(130)
+        self.quit_btn.clicked.connect(self._on_quit)
+        bottom_bar.addWidget(self.quit_btn)
+
+        bottom_bar.addStretch()
+
         self.next_btn = GoldButton("Next Round  →")
         self.next_btn.setFixedWidth(200)
         self.next_btn.clicked.connect(self._on_next)
         self.next_btn.hide()
-        bottom_bar.addStretch()
         bottom_bar.addWidget(self.next_btn)
+
         root.addLayout(bottom_bar)
 
     # ── Game loading ──────────────────────────────────────────────
@@ -1065,7 +1077,7 @@ class GameScreen(QWidget):
 
         # Clear round + player labels
         self.round_label.setText(f"Round {r} of {t}")
-        self.player_label.setText(f"👤 {player.get_name()}'s Turn")
+        self.player_label.setText(f"👤  {player.get_name()}")
         self.score_label.setText(f"Score: {player.get_total_score()}")
 
         # Reset bonus suit display
@@ -1206,6 +1218,14 @@ class GameScreen(QWidget):
             # Next round
             self._current_player_idx = 0
             self._start_round()
+
+
+    def _on_quit(self):
+        """Exit game without saving score. Goes back to main menu."""
+        self.game.reset_game()
+        self.selected.clear()
+        # on_menu callback — defined when MainWindow wires this screen
+        self._on_menu()
 
     # ── Helpers ───────────────────────────────────────────────────
     def _current_player(self):
@@ -1352,7 +1372,10 @@ class MainWindow(QMainWindow):
             on_start_game=self._start_game,
             on_back=self._show_welcome
         )
-        self.game_screen     = GameScreen(on_summary=self._show_summary)
+        self.game_screen     = GameScreen(
+            on_summary = self._show_summary,
+            on_menu    = self._show_welcome,
+        )
         self.summary_screen  = SummaryScreen(
             on_play_again=self._play_again,
             on_menu=self._show_welcome,
