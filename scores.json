@@ -1,6 +1,13 @@
 [
   {
     "name": "Computer",
+    "total_score": 42,
+    "rounds_played": 1,
+    "avg_score": 42.0,
+    "date": "20 Jun 2026"
+  },
+  {
+    "name": "Computer",
     "total_score": 60,
     "rounds_played": 2,
     "avg_score": 30.0,

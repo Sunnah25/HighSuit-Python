@@ -46,6 +46,11 @@ class GoldButton(QPushButton):
         self.setFixedHeight(48)
         self.setFont(QFont("Georgia", 12, QFont.Bold))
         self.setCursor(Qt.PointingHandCursor)
+        self._apply_style()
+        # Play click sound on every press automatically
+        self.clicked.connect(lambda: _SFX.play("click"))
+
+    def _apply_style(self):
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {C.GOLD};
@@ -76,6 +81,8 @@ class GhostButton(QPushButton):
             }}
             QPushButton:hover {{ border-color: {C.GOLD}; color: {C.GOLD}; }}
         """)
+        # Play click sound on every press automatically
+        self.clicked.connect(lambda: _SFX.play("click"))
 
 
 class StyledInput(QLineEdit):
@@ -1110,6 +1117,7 @@ class GameScreen(QWidget):
         """Human player picks bonus suit. Now they get ONE replacement action."""
         player = self._current_player()
         self.game.set_bonus_suit(player.get_name(), suit)
+        _SFX.play("suit")
 
         sym, col = self._suit_display(suit)
         self.bonus_symbol.setText(sym)
