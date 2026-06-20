@@ -8,6 +8,20 @@
   },
   {
     "name": "Computer",
+    "total_score": 35,
+    "rounds_played": 1,
+    "avg_score": 35.0,
+    "date": "20 Jun 2026"
+  },
+  {
+    "name": "Sunnah",
+    "total_score": 32,
+    "rounds_played": 1,
+    "avg_score": 32.0,
+    "date": "20 Jun 2026"
+  },
+  {
+    "name": "Computer",
     "total_score": 60,
     "rounds_played": 2,
     "avg_score": 30.0,
@@ -18,20 +32,6 @@
     "total_score": 56,
     "rounds_played": 2,
     "avg_score": 28.0,
-    "date": "20 Jun 2026"
-  },
-  {
-    "name": "Sunnah",
-    "total_score": 53,
-    "rounds_played": 2,
-    "avg_score": 26.5,
-    "date": "20 Jun 2026"
-  },
-  {
-    "name": "Sunnah",
-    "total_score": 52,
-    "rounds_played": 2,
-    "avg_score": 26.0,
     "date": "20 Jun 2026"
   }
 ]

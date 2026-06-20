@@ -1307,8 +1307,41 @@ class MainWindow(QMainWindow):
         )
 
     def _build_ui(self):
+        # Root widget holds stack + footer
+        root_widget = QWidget()
+        root_layout = QVBoxLayout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        root_widget.setLayout(root_layout)
+        self.setCentralWidget(root_widget)
+
         self.stack = QStackedWidget()
-        self.setCentralWidget(self.stack)
+        root_layout.addWidget(self.stack)
+
+        # ── Persistent footer ─────────────────────────────────────
+        footer = QWidget()
+        footer.setFixedHeight(26)
+        footer.setStyleSheet(f"background-color: {C.FELT_DARK};")
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(12, 0, 12, 0)
+        footer.setLayout(footer_layout)
+
+        footer_text = QLabel("Built by ")
+        footer_text.setFont(QFont("Arial", 8))
+        footer_text.setStyleSheet(f"color: {C.TEXT_MUTED}; background: transparent;")
+
+        footer_link = QLabel('<a href="https://github.com/Sunnah25" style="color: #D4A843; text-decoration: none;">Mohius Sunnah Chowdhury</a>')
+        footer_link.setFont(QFont("Arial", 8))
+        footer_link.setStyleSheet("background: transparent;")
+        footer_link.setOpenExternalLinks(True)
+        footer_link.setCursor(Qt.PointingHandCursor)
+
+        footer_layout.addStretch()
+        footer_layout.addWidget(footer_text)
+        footer_layout.addWidget(footer_link)
+        footer_layout.addStretch()
+
+        root_layout.addWidget(footer)
 
         self.welcome_screen  = WelcomeScreen(
             on_start=self._show_setup,
