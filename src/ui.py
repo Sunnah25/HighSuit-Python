@@ -598,19 +598,16 @@ class SummaryScreen(QWidget):
     def _build_ui(self):
         self.setStyleSheet(f"background-color: {C.FELT};")
         root = QVBoxLayout()
-        root.setContentsMargins(40, 20, 40, 20)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         self.setLayout(root)
 
-        # Scroll area so content never overflows
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setMinimumWidth(500)
-        self.scroll.setMaximumWidth(580)
-        self.scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.scroll.setStyleSheet("""
             QScrollArea {
                 border: none;
-                background: transparent;
+                background-color: #1B4332;
             }
             QScrollBar:vertical {
                 background: #0D2B20;
@@ -622,14 +619,28 @@ class SummaryScreen(QWidget):
                 border-radius: 3px;
             }
         """)
-        root.addWidget(self.scroll, alignment=Qt.AlignCenter)
+        root.addWidget(self.scroll)
 
     def load_summary(self, players, rounds_played, score_manager):
         """Rebuild content from scratch into a fresh widget — no clear bugs."""
 
         # Fresh inner widget every time — no deleteLater needed
+        # Outer widget fills full scroll area with felt background
+        outer = QWidget()
+        outer.setStyleSheet(f"background-color: {C.FELT};")
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(60, 30, 60, 30)
+        outer_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        outer.setLayout(outer_layout)
+
+        # Inner panel — card-like, centred, max width
         inner = QWidget()
-        inner.setStyleSheet(f"background-color: {C.PANEL}; border-radius: 12px;")
+        inner.setMaximumWidth(540)
+        inner.setStyleSheet(f"""
+            background-color: {C.PANEL};
+            border-radius: 12px;
+            border: 1px solid {C.FELT_LIGHT};
+        """)
         layout = QVBoxLayout()
         layout.setContentsMargins(36, 32, 36, 32)
         layout.setSpacing(12)
@@ -722,7 +733,8 @@ class SummaryScreen(QWidget):
         menu_btn.clicked.connect(self.on_menu)
         layout.addWidget(menu_btn)
 
-        self.scroll.setWidget(inner)
+        outer_layout.addWidget(inner, alignment=Qt.AlignHCenter)
+        self.scroll.setWidget(outer)
 
 
 # ------------------------------------------------------------------ #
@@ -908,8 +920,8 @@ class GameScreen(QWidget):
         top_bar.addWidget(self.round_label)
         top_bar.addStretch()
         self.player_label = QLabel("")
-        self.player_label.setFont(QFont("Georgia", 13))
-        self.player_label.setStyleSheet(f"color: {C.TEXT_LIGHT}; background: transparent;")
+        self.player_label.setFont(QFont("Georgia", 13, QFont.Bold))
+        self.player_label.setStyleSheet(f"color: {C.GOLD}; background: transparent;")
         top_bar.addWidget(self.player_label)
         top_bar.addSpacing(20)
         self.score_label = QLabel("Score: 0")
