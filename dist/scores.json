@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Computer",
+    "total_score": 34,
+    "rounds_played": 1,
+    "avg_score": 34.0,
+    "date": "21 Jun 2026"
+  },
+  {
+    "name": "Sunnah",
+    "total_score": 27,
+    "rounds_played": 1,
+    "avg_score": 27.0,
+    "date": "21 Jun 2026"
+  },
+  {
+    "name": "Sunnah",
+    "total_score": 19,
+    "rounds_played": 1,
+    "avg_score": 19.0,
+    "date": "21 Jun 2026"
+  },
+  {
+    "name": "Computer",
+    "total_score": 17,
+    "rounds_played": 1,
+    "avg_score": 17.0,
+    "date": "21 Jun 2026"
+  }
+]
