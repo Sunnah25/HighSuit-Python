@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QSpinBox, QFrame, QScrollArea, QSizePolicy
 )
 
+import os
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 
@@ -245,6 +246,134 @@ class CardWidget(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.on_toggle(self.index)
+
+
+
+# ------------------------------------------------------------------ #
+#  Splash Screen                                                      #
+# ------------------------------------------------------------------ #
+class SplashScreen(QWidget):
+    """
+    Loading splash shown for 3 seconds on launch.
+    Displays logo, suit symbols and a loading bar.
+    """
+    def __init__(self, on_done):
+        super().__init__()
+        self.on_done   = on_done
+        self._progress = 0
+        self._build_ui()
+        self._start_loading()
+
+    def _build_ui(self):
+        self.setStyleSheet(f"background-color: {C.FELT_DARK};")
+        root = QVBoxLayout()
+        root.setAlignment(Qt.AlignCenter)
+        root.setSpacing(0)
+        root.setContentsMargins(60, 60, 60, 60)
+        self.setLayout(root)
+
+        # ── Suit symbols row ──────────────────────────────────────
+        suits_row = QHBoxLayout()
+        suits_row.setSpacing(20)
+        suits_row.setAlignment(Qt.AlignCenter)
+        for suit in ["Spades", "Hearts", "Diamonds", "Clubs"]:
+            badge = SuitBadge(suit, size=42)
+            suits_row.addWidget(badge)
+        root.addLayout(suits_row)
+
+        root.addSpacing(28)
+
+        # ── Big title ─────────────────────────────────────────────
+        title = QLabel("HIGHSUIT")
+        title.setFont(QFont("Georgia", 64, QFont.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet(
+            f"color: {C.GOLD}; background: transparent; letter-spacing: 10px;"
+        )
+        root.addWidget(title)
+
+        # ── Tagline ───────────────────────────────────────────────
+        tagline = QLabel("A game of cards, strategy & suits")
+        tagline.setFont(QFont("Georgia", 14))
+        tagline.setAlignment(Qt.AlignCenter)
+        tagline.setStyleSheet(f"color: {C.TEXT_MUTED}; background: transparent;")
+        root.addWidget(tagline)
+
+        root.addSpacing(48)
+
+        # ── Loading bar track ─────────────────────────────────────
+        track = QWidget()
+        track.setFixedSize(360, 6)
+        track.setStyleSheet(f"""
+            background-color: {C.FELT_LIGHT};
+            border-radius: 3px;
+        """)
+
+        self.bar = QWidget(track)
+        self.bar.setFixedHeight(6)
+        self.bar.setFixedWidth(0)
+        self.bar.setStyleSheet(f"""
+            background-color: {C.GOLD};
+            border-radius: 3px;
+        """)
+
+        root.addWidget(track, alignment=Qt.AlignCenter)
+        root.addSpacing(16)
+
+        # ── Loading text ──────────────────────────────────────────
+        self.loading_label = QLabel("Shuffling the deck...")
+        self.loading_label.setFont(QFont("Arial", 10))
+        self.loading_label.setAlignment(Qt.AlignCenter)
+        self.loading_label.setStyleSheet(
+            f"color: {C.TEXT_MUTED}; background: transparent;"
+        )
+        root.addWidget(self.loading_label)
+
+        root.addSpacing(40)
+
+        # ── Version ───────────────────────────────────────────────
+        version = QLabel("v1.0.0")
+        version.setFont(QFont("Arial", 9))
+        version.setAlignment(Qt.AlignCenter)
+        version.setStyleSheet(f"color: {C.FELT_LIGHT}; background: transparent;")
+        root.addWidget(version)
+
+    def _start_loading(self):
+        """Animate the loading bar over ~2.5 seconds."""
+        self._timer = QTimer()
+        self._timer.setInterval(25)   # tick every 25ms
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+
+    MESSAGES = [
+        "Shuffling the deck...",
+        "Dealing the cards...",
+        "Polishing the table...",
+        "Warming up the suits...",
+        "Ready to play!",
+    ]
+
+    def _tick(self):
+        self._progress += 1   # 0 → 100 over 100 ticks × 25ms = 2.5 seconds
+
+        # Update bar width (max 360px)
+        self.bar.setFixedWidth(int(360 * self._progress / 100))
+
+        # Update loading message
+        msg_index = min(
+            int(self._progress / 20),
+            len(self.MESSAGES) - 1
+        )
+        self.loading_label.setText(self.MESSAGES[msg_index])
+
+        if self._progress >= 100:
+            self._timer.stop()
+            # Small pause at 100% then transition
+            QTimer.singleShot(300, self.on_done)
+
+
+
+
 
 
 # ------------------------------------------------------------------ #
@@ -1323,12 +1452,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("HighSuit Card Game")
         self.setMinimumSize(900, 650)
         self.resize(1024, 720)
+
+        # Set window icon
+        import sys
+        from PyQt5.QtGui import QIcon
+        if getattr(sys, 'frozen', False):
+            icon_path = os.path.join(sys._MEIPASS, 'assets', 'icon.ico')
+        else:
+            icon_path = os.path.join(
+                os.path.dirname(__file__), '..', 'assets', 'icon.ico'
+            )
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         self._score_manager = ScoreManager()
         self._last_players  = ["Player"]
         self._last_rounds   = 3
         self._centre_on_screen()
         self._build_ui()
-        _SFX.start_music()
+
 
     def _centre_on_screen(self):
         from PyQt5.QtWidgets import QDesktopWidget
@@ -1363,7 +1504,11 @@ class MainWindow(QMainWindow):
         footer_text.setFont(QFont("Arial", 8))
         footer_text.setStyleSheet(f"color: {C.TEXT_MUTED}; background: transparent;")
 
-        footer_link = QLabel('<a href="https://github.com/Sunnah25" style="color: #D4A843; text-decoration: none;">Mohius Sunnah Chowdhury</a>')
+        footer_link = QLabel(
+            '<a href="https://github.com/Sunnah25" '
+            'style="color: #D4A843; text-decoration: none;">'
+            'Mohius Sunnah Chowdhury</a>'
+        )
         footer_link.setFont(QFont("Arial", 8))
         footer_link.setStyleSheet("background: transparent;")
         footer_link.setOpenExternalLinks(True)
@@ -1373,54 +1518,54 @@ class MainWindow(QMainWindow):
         footer_layout.addWidget(footer_text)
         footer_layout.addWidget(footer_link)
         footer_layout.addStretch()
-
         root_layout.addWidget(footer)
 
+        # ── Screens ───────────────────────────────────────────────
+        self.splash_screen   = SplashScreen(on_done=self._show_welcome)
         self.welcome_screen  = WelcomeScreen(
-            on_start=self._show_setup,
-            on_scores=self._show_high_scores
+            on_start  = self._show_setup,
+            on_scores = self._show_high_scores,
         )
         self.setup_screen    = SetupScreen(
-            on_start_game=self._start_game,
-            on_back=self._show_welcome
+            on_start_game = self._start_game,
+            on_back       = self._show_welcome,
         )
         self.game_screen     = GameScreen(
             on_summary = self._show_summary,
             on_menu    = self._show_welcome,
         )
         self.summary_screen  = SummaryScreen(
-            on_play_again=self._play_again,
-            on_menu=self._show_welcome,
-            on_scores=self._show_high_scores
+            on_play_again = self._play_again,
+            on_menu       = self._show_welcome,
+            on_scores     = self._show_high_scores,
         )
         self.highscore_screen = HighScoreScreen(on_back=self._show_welcome)
 
-        self.stack.addWidget(self.welcome_screen)   # 0
-        self.stack.addWidget(self.setup_screen)     # 1
-        self.stack.addWidget(self.game_screen)      # 2
-        self.stack.addWidget(self.summary_screen)   # 3
-        self.stack.addWidget(self.highscore_screen) # 4
+        self.stack.addWidget(self.splash_screen)
+        self.stack.addWidget(self.welcome_screen)
+        self.stack.addWidget(self.setup_screen)
+        self.stack.addWidget(self.game_screen)
+        self.stack.addWidget(self.summary_screen)
+        self.stack.addWidget(self.highscore_screen)
 
-        self.stack.setCurrentIndex(0)
+        # Start on splash
+        self.stack.setCurrentWidget(self.splash_screen)
 
     def _show_welcome(self):
         self.setup_screen.reset()
-        self.stack.setCurrentIndex(0)
+        self.stack.setCurrentWidget(self.welcome_screen)
+        _SFX.start_music()
 
     def _show_setup(self):
-        self.stack.setCurrentIndex(1)
+        self.stack.setCurrentWidget(self.setup_screen)
 
     def _start_game(self, player_names, total_rounds):
         self._last_players = player_names
         self._last_rounds  = total_rounds
         self.game_screen.load_game(player_names, total_rounds)
-        self.stack.setCurrentIndex(2)
+        self.stack.setCurrentWidget(self.game_screen)
 
     def _show_summary(self, players):
-        """
-        Save scores for ALL players (including Computer — matches Java).
-        Then show summary with winner declared.
-        """
         rounds_played = self._last_rounds
         for player in players:
             self._score_manager.add_score(
@@ -1429,12 +1574,21 @@ class MainWindow(QMainWindow):
                 rounds_played = rounds_played,
             )
         self.summary_screen.load_summary(players, rounds_played, self._score_manager)
-        self.stack.setCurrentIndex(3)
+        self.stack.setCurrentWidget(self.summary_screen)
 
     def _play_again(self):
         self.game_screen.load_game(self._last_players, self._last_rounds)
-        self.stack.setCurrentIndex(2)
+        self.stack.setCurrentWidget(self.game_screen)
 
     def _show_high_scores(self):
         self.highscore_screen.load_scores(self._score_manager)
-        self.stack.setCurrentIndex(4)
+        self.stack.setCurrentWidget(self.highscore_screen)
+
+
+
+
+
+
+
+ 
+

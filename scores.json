@@ -8,6 +8,13 @@
   },
   {
     "name": "Computer",
+    "total_score": 40,
+    "rounds_played": 1,
+    "avg_score": 40.0,
+    "date": "21 Jun 2026"
+  },
+  {
+    "name": "Computer",
     "total_score": 35,
     "rounds_played": 1,
     "avg_score": 35.0,
@@ -26,12 +33,5 @@
     "rounds_played": 3,
     "avg_score": 33.0,
     "date": "21 Jun 2026"
-  },
-  {
-    "name": "Sunnah",
-    "total_score": 32,
-    "rounds_played": 1,
-    "avg_score": 32.0,
-    "date": "20 Jun 2026"
   }
 ]
